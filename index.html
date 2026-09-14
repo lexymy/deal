@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор рентабельности сделки</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0f172a; --card:#1e293b; --card2:#16213a; --accent:#3b82f6;
+  --green:#16a34a; --greenBg:rgba(22,163,74,.15); --greenTxt:#4ade80;
+  --orange:#ea580c; --orangeBg:rgba(234,88,12,.15); --orangeTxt:#fb923c;
+  --red:#dc2626; --redBg:rgba(220,38,38,.15); --redTxt:#f87171;
+  --text:#e2e8f0; --muted:#94a3b8; --border:#334155;
+}
+*{box-sizing:border-box;}
+body{margin:0; font-family:'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); padding:24px;}
+h1{font-size:22px; margin-bottom:4px;}
+.sub{color:var(--muted); margin-bottom:16px; font-size:14px;}
+.toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;}
+.toolbar button, .toolbar select{
+  background:var(--card2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+  padding:8px 14px; font-size:13px; cursor:pointer;
+}
+.toolbar button:hover{border-color:var(--accent);}
+.grid{display:grid; grid-template-columns: 380px 1fr; gap:20px; align-items:start;}
+@media (max-width: 900px){ .grid{grid-template-columns:1fr;} }
+.card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px;}
+.card h2{font-size:15px; margin:0 0 14px; color:var(--accent); text-transform:uppercase; letter-spacing:.5px;}
+label{display:block; font-size:13px; color:var(--muted); margin:10px 0 4px;}
+input[type=number], input[type=text], input[type=date], select{
+  width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--border);
+  background:var(--card2); color:var(--text); font-size:14px;
+}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.checkbox-row{display:flex; align-items:center; gap:8px; margin-top:12px;}
+.checkbox-row input{width:auto;}
+.hint{font-size:11px; color:var(--muted); margin-top:3px;}
+.conditional{display:none;} .conditional.active{display:block;}
+
+/* ==== KPI dashboard: decisive vs informational ==== */
+.kpi-main{
+  border-radius:16px; padding:22px; border:2px solid var(--border); background:var(--card);
+  margin-bottom:14px; text-align:center;
+}
+.kpi-main .kpi-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px;}
+.kpi-main .kpi-value{font-size:40px; font-weight:900; line-height:1;}
+.kpi-main .kpi-sub{font-size:12px; color:var(--muted); margin-top:6px;}
+
+.kpi-info-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;}
+@media (max-width:900px){ .kpi-info-grid{grid-template-columns:1fr;} }
+.kpi-info{border-radius:12px; padding:14px; border:1px dashed var(--border); background:var(--card2); opacity:.85;}
+.kpi-info .kpi-label{font-size:10px; color:var(--muted); text-transform:uppercase; margin-bottom:5px;}
+.kpi-info .kpi-value{font-size:18px; font-weight:700;}
+.kpi-info .kpi-tag{font-size:10px; color:var(--muted); margin-top:4px; font-style:italic;}
+
+.badge{display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:700; margin-top:6px;}
+.badge.green{background:var(--greenBg); color:var(--greenTxt);}
+.badge.orange{background:var(--orangeBg); color:var(--orangeTxt);}
+.badge.red{background:var(--redBg); color:var(--redTxt);}
+.badge.info{background:rgba(148,163,184,.15); color:var(--muted);}
+
+.verdict{padding:16px; border-radius:14px; font-weight:700; font-size:16px; text-align:center; margin-bottom:16px;}
+.verdict.red{background:var(--redBg); color:var(--redTxt); border:1px solid var(--red);}
+.verdict.orange{background:var(--orangeBg); color:var(--orangeTxt); border:1px solid var(--orange);}
+.verdict.green{background:var(--greenBg); color:var(--greenTxt); border:1px solid var(--green);}
+
+details{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px 20px; margin-bottom:16px;}
+summary{cursor:pointer; font-size:14px; color:var(--accent); font-weight:600; padding:6px 0;}
+table{width:100%; border-collapse:collapse; font-size:13px; margin-top:10px;}
+th, td{padding:8px 10px; border-bottom:1px solid var(--border); text-align:right;}
+th{color:var(--muted); font-weight:600; font-size:11px;}
+td.label, th.label{text-align:left; color:var(--text); font-weight:500;}
+tr.section td{background:var(--card2); font-weight:700; color:var(--accent); font-size:11px; text-transform:uppercase;}
+tr.highlight-row td{color:var(--green); font-weight:800;}
+
+.chart-wrap{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 16px;}
+.chart-wrap h2{font-size:13px; margin:0 0 8px;}
+
+.opt-card{border-radius:14px; padding:18px; margin-top:16px; border:1px solid var(--border);}
+.opt-card.ok{background:var(--greenBg); border-color:var(--green);}
+.opt-card.bad{background:var(--redBg); border-color:var(--red);}
+.opt-card h3{margin-top:0; font-size:15px;}
+.note{font-size:12px; color:var(--muted); background:var(--card2); border-radius:8px; padding:10px; margin-top:8px; border-left:3px solid var(--accent);}
+</style>
+</head>
+<body>
+
+<h1>💼 Калькулятор рентабельности сделки (купля-продажа)</h1>
+<div class="sub">Решающий показатель — доходность в месяц (цель ≥5%). Годовые и CoC — справочно.</div>
+
+<div class="toolbar">
+  <button onclick="saveScenario()">💾 Сохранить сценарий</button>
+  <select id="scenarioList" onchange="loadScenario(this.value)"><option value="">📂 Загрузить сценарий…</option></select>
+  <button onclick="deleteScenario()">🗑 Удалить выбранный</button>
+  <button onclick="exportCSV()">📤 Экспорт в CSV</button>
+</div>
+
+<!-- ГЛАВНЫЙ РЕШАЮЩИЙ KPI -->
+<div class="kpi-main" id="kpiMain"></div>
+
+<!-- СПРАВОЧНЫЕ KPI -->
+<div class="kpi-info-grid" id="kpiInfoGrid"></div>
+
+<div id="verdict" class="verdict"></div>
+
+<div class="grid">
+
+<div>
+  <div class="card">
+    <h2>1. Параметры сделки</h2>
+    <label>Стоимость закупки, ₽</label>
+    <input type="text" id="purchase" value="64 680 000" inputmode="decimal">
+    <label>Цена реализации клиенту, ₽</label>
+    <input type="text" id="sale" value="72 298 063,56" inputmode="decimal">
+    <label>Аванс от клиента, ₽ <span style="color:var(--accent)">(снижает нужный капитал)</span></label>
+    <input type="text" id="advance" value="0" inputmode="decimal">
+    <div class="hint">Предоплата, которую клиент вносит нам ДО отгрузки</div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="pricesIncludeVAT" checked>
+      <label style="margin:0;">Цены указаны с НДС</label>
+    </div>
+    <label>Ставка НДС, %</label>
+    <input type="number" id="vatRate" value="22" step="0.5">
+    <label>Процент Дельты РКП, который оставляем себе, %</label>
+    <input type="number" id="ourPercent" value="50" min="0" max="100">
+  </div>
+
+  <div class="card">
+    <h2>2. Налоги</h2>
+    <label>Ставка налога на прибыль, %</label>
+    <input type="number" id="profitTaxRate" value="25">
+    <label>Минимальное отчисление в ФНС от продажи, %</label>
+    <input type="number" id="minTaxRate" value="4">
+    <label>База для минимального отчисления</label>
+    <select id="minTaxBase">
+      <option value="net">Выручка без НДС</option>
+      <option value="gross" selected>Выручка с НДС</option>
+    </select>
+    <div class="checkbox-row">
+      <input type="checkbox" id="gpAsExpense">
+      <label style="margin:0;">Доля ГП — официальный расход (уменьшает налог на прибыль)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3. Срок и финансирование</h2>
+    <label>Срок сделки, дней</label>
+    <input type="number" id="termDays" value="118">
+    <label>Источник финансирования</label>
+    <select id="fundingType">
+      <option value="own">Собственные средства</option>
+      <option value="mixed">Смешанные</option>
+      <option value="loan">Заёмные средства</option>
+    </select>
+    <div id="fundingFields" class="conditional">
+      <div class="row2">
+        <div><label>Ставка кредита, % год.</label><input type="number" id="loanRate" value="20"></div>
+        <div><label>Сумма займа, ₽</label><input type="text" id="loanAmount" value="500 000" inputmode="decimal"></div>
+      </div>
+    </div>
+    <label>Ставка депозита (альтернативная), % годовых</label>
+    <input type="number" id="altRate" value="11">
+  </div>
+
+  <div class="card">
+    <h2>4. Даты и задержки</h2>
+    <div class="row2">
+      <div><label>Дата по договору</label><input type="date" id="contractDate" value="2026-09-14"></div>
+      <div><label>Дата фактическая</label><input type="date" id="actualDate" value="2026-09-14"></div>
+    </div>
+    <label>Тип отклонения</label>
+    <select id="delayType">
+      <option value="none">Без задержки</option>
+      <option value="payment">Задержка оплаты</option>
+      <option value="my_order">Задержка производства — наш заказ</option>
+      <option value="client_order">Задержка производства — заказчик</option>
+    </select>
+    <label>Фактическое количество дней задержки</label>
+    <input type="number" id="delayDays" value="0">
+    <div class="note">Оплата / вина заказчика → списывается с доли <b>ГП</b>. Наша вина → списывается с <b>нашей</b> доли.</div>
+  </div>
+
+  <div class="card">
+    <h2>5. Доп. риски (опционально)</h2>
+    <label>Резерв на просрочку/невозврат, %</label>
+    <input type="number" id="reservePct" value="0">
+    <label>Курсовой риск — стресс-надбавка к закупке, %</label>
+    <input type="number" id="fxRiskPct" value="0">
+  </div>
+</div>
+
+<div>
+  <details>
+    <summary>📊 Показать детальный расчёт (P&L, НДС, налоги, обе колонки)</summary>
+    <table id="resultsTable">
+      <thead><tr>
+        <th class="label">Показатель</th>
+        <th>Полная Дельта РКП <span style="color:#60a5fa">(100%)</span></th>
+        <th>С учётом доли ГП <span style="color:#fb923c">(split)</span></th>
+      </tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </details>
+
+  <div class="chart-wrap">
+    <h2 style="color:var(--accent);">📈 P&L по дням: от вложенного капитала к прибыли</h2>
+    <canvas id="pnlChart" height="70"></canvas>
+  </div>
+
+  <div id="optCard" class="opt-card"></div>
+</div>
+
+</div>
+
+<script>
+var _0x1c05e = (339353 ^ 339354) + (972383 ^ 972378);
+const $ = id => document['\u0067\u0065\u0074\u0045\u006C\u0065\u006D\u0065\u006E\u0074\u0042\u0079\u0049\u0064'](id);
+_0x1c05e = (888512 ^ 888516) + (930761 ^ 930765);
+const fmt = n => isFinite(n) ? Math['\u0072\u006F\u0075\u006E\u0064'](n)['\u0074\u006F\u004C\u006F\u0063\u0061\u006C\u0065\u0053\u0074\u0072\u0069\u006E\u0067']("\u0072\u0075\u002D\u0052\u0055") + ' ₽' : n === Infinity ? "\u221E" : "\u2014";
+const fmtPct = n => n === Infinity ? "\u221E" : n === -Infinity ? "\u2014" : isFinite(n) ? n['\u0074\u006F\u0046\u0069\u0078\u0065\u0064'](473355 ^ 473353) + ' %' : "\u2014";
+function parseNum(str) {
+  if (typeof str !== 'string') return parseFloat(str) || 701661 ^ 701661;
+  const _0x3_0xc38 = str['\u0072\u0065\u0070\u006C\u0061\u0063\u0065'](new RegExp("\\s", '\u0067'), '')['\u0072\u0065\u0070\u006C\u0061\u0063\u0065']("\u002C", "\u002E");
+  return parseFloat(_0x3_0xc38) || 181796 ^ 181796;
+}
+function formatThousands(num) {
+  if (!isFinite(num)) return '';
+  const _0xc_0x7gd = num['\u0074\u006F\u0053\u0074\u0072\u0069\u006E\u0067']()['\u0073\u0070\u006C\u0069\u0074']("\u002E");
+  _0xc_0x7gd[598826 ^ 598826] = _0xc_0x7gd[722989 ^ 722989]['\u0072\u0065\u0070\u006C\u0061\u0063\u0065'](new RegExp('\u005C\u0042\u0028\u003F\u003D\u0028\u005C\u0064\u007B\u0033\u007D\u0029\u002B\u0028\u003F\u0021\u005C\u0064\u0029\u0029', '\u0067'), "\u0020");
+  return _0xc_0x7gd['\u006C\u0065\u006E\u0067\u0074\u0068'] > (265360 ^ 265361) ? _0xc_0x7gd[284469 ^ 284469] + "\u002C" + _0xc_0x7gd[437692 ^ 437693] : _0xc_0x7gd[548545 ^ 548545];
+}
+function attachThousandsFormatting(id) {
+  const _0x60d53f = $(id);
+  _0x60d53f['\u0061\u0064\u0064\u0045\u0076\u0065\u006E\u0074\u004C\u0069\u0073\u0074\u0065\u006E\u0065\u0072']('focus', function () {
+    this['\u0076\u0061\u006C\u0075\u0065'] = this['\u0076\u0061\u006C\u0075\u0065']['\u0072\u0065\u0070\u006C\u0061\u0063\u0065'](new RegExp("\\s", '\u0067'), '');
+  });
+  _0x60d53f['\u0061\u0064\u0064\u0045\u0076\u0065\u006E\u0074\u004C\u0069\u0073\u0074\u0065\u006E\u0065\u0072']("\u0062\u006C\u0075\u0072", function () {
+    let _0x3b01dd;
+    const _0xd015c = parseNum(this['\u0076\u0061\u006C\u0075\u0065']);
+    _0x3b01dd = '\u0068\u0071\u006E\u0064\u006A\u006C';
+    this['\u0076\u0061\u006C\u0075\u0065'] = _0xd015c ? formatThousands(_0xd015c) : "\u0030";
+  });
+}
+['purchase', 'sale', "\u0061\u0064\u0076\u0061\u006E\u0063\u0065", "\u006C\u006F\u0061\u006E\u0041\u006D\u006F\u0075\u006E\u0074"]['\u0066\u006F\u0072\u0045\u0061\u0063\u0068'](attachThousandsFormatting);
+$("\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0054\u0079\u0070\u0065")['\u0061\u0064\u0064\u0045\u0076\u0065\u006E\u0074\u004C\u0069\u0073\u0074\u0065\u006E\u0065\u0072']('change', toggleFunding);
+function toggleFunding() {
+  const t = $('fundingType')['\u0076\u0061\u006C\u0075\u0065'];
+  $("\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0046\u0069\u0065\u006C\u0064\u0073")['\u0063\u006C\u0061\u0073\u0073\u004C\u0069\u0073\u0074']['\u0074\u006F\u0067\u0067\u006C\u0065']('active', t === "\u006D\u0069\u0078\u0065\u0064" || t === 'loan');
+}
+toggleFunding();
+document['\u0071\u0075\u0065\u0072\u0079\u0053\u0065\u006C\u0065\u0063\u0074\u006F\u0072\u0041\u006C\u006C']('input, select')['\u0066\u006F\u0072\u0045\u0061\u0063\u0068'](el => el['\u0061\u0064\u0064\u0045\u0076\u0065\u006E\u0074\u004C\u0069\u0073\u0074\u0065\u006E\u0065\u0072']('input', render));
+function gatherInputs() {
+  return {
+    "purchase": parseNum($("\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065")['\u0076\u0061\u006C\u0075\u0065']),
+    '\u0073\u0061\u006C\u0065': parseNum($("\u0073\u0061\u006C\u0065")['\u0076\u0061\u006C\u0075\u0065']),
+    '\u0061\u0064\u0076\u0061\u006E\u0063\u0065': parseNum($("\u0061\u0064\u0076\u0061\u006E\u0063\u0065")['\u0076\u0061\u006C\u0075\u0065']),
+    '\u0070\u0072\u0069\u0063\u0065\u0073\u0057\u0069\u0074\u0068\u0056\u0041\u0054': $('pricesIncludeVAT')['\u0063\u0068\u0065\u0063\u006B\u0065\u0064'],
+    '\u0076\u0061\u0074\u0052\u0061\u0074\u0065': parseNum($("\u0076\u0061\u0074\u0052\u0061\u0074\u0065")['\u0076\u0061\u006C\u0075\u0065']) / (753506 ^ 753414),
+    '\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074': parseNum($("\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074")['\u0076\u0061\u006C\u0075\u0065']) / (836256 ^ 836292),
+    '\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0052\u0061\u0074\u0065': parseNum($("\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0052\u0061\u0074\u0065")['\u0076\u0061\u006C\u0075\u0065']) / (192280 ^ 192380),
+    '\u006D\u0069\u006E\u0054\u0061\u0078\u0052\u0061\u0074\u0065': parseNum($("\u006D\u0069\u006E\u0054\u0061\u0078\u0052\u0061\u0074\u0065")['\u0076\u0061\u006C\u0075\u0065']) / (662929 ^ 663029),
+    "minTaxBase": $('minTaxBase')['\u0076\u0061\u006C\u0075\u0065'],
+    '\u0067\u0070\u0041\u0073\u0045\u0078\u0070\u0065\u006E\u0073\u0065': $("\u0067\u0070\u0041\u0073\u0045\u0078\u0070\u0065\u006E\u0073\u0065")['\u0063\u0068\u0065\u0063\u006B\u0065\u0064'],
+    '\u0074\u0065\u0072\u006D\u0044\u0061\u0079\u0073': parseNum($("\u0074\u0065\u0072\u006D\u0044\u0061\u0079\u0073")['\u0076\u0061\u006C\u0075\u0065']) || 467255 ^ 467254,
+    '\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0054\u0079\u0070\u0065': $("\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0054\u0079\u0070\u0065")['\u0076\u0061\u006C\u0075\u0065'],
+    '\u006C\u006F\u0061\u006E\u0052\u0061\u0074\u0065': parseNum($("\u006C\u006F\u0061\u006E\u0052\u0061\u0074\u0065")['\u0076\u0061\u006C\u0075\u0065']) / (409800 ^ 409772),
+    '\u006C\u006F\u0061\u006E\u0041\u006D\u006F\u0075\u006E\u0074': parseNum($('loanAmount')['\u0076\u0061\u006C\u0075\u0065']),
+    '\u0061\u006C\u0074\u0052\u0061\u0074\u0065': parseNum($('altRate')['\u0076\u0061\u006C\u0075\u0065']) / (929628 ^ 929592),
+    "delayType": $("\u0064\u0065\u006C\u0061\u0079\u0054\u0079\u0070\u0065")['\u0076\u0061\u006C\u0075\u0065'],
+    '\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073': parseNum($("\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073")['\u0076\u0061\u006C\u0075\u0065']),
+    '\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0050\u0063\u0074': parseNum($('reservePct')['\u0076\u0061\u006C\u0075\u0065']) / (955854 ^ 955818),
+    '\u0066\u0078\u0052\u0069\u0073\u006B\u0050\u0063\u0074': parseNum($('fxRiskPct')['\u0076\u0061\u006C\u0075\u0065']) / (334200 ^ 334108)
+  };
+}
+function calcCore(inp, overrides = {}) {
+  let _0x63c;
+  const _0xf8da = overrides['\u0061\u0064\u0076\u0061\u006E\u0063\u0065\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065'] !== undefined ? overrides['\u0061\u0064\u0076\u0061\u006E\u0063\u0065\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065'] : inp['\u0061\u0064\u0076\u0061\u006E\u0063\u0065'];
+  _0x63c = 684876 ^ 684873;
+  var _0xa7ad = (552727 ^ 552726) + (907994 ^ 907996);
+  const _0x0e7ded = overrides['\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065'] !== undefined ? overrides['\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065'] : inp['\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074'];
+  _0xa7ad = (684725 ^ 684722) + (343590 ^ 343586);
+  let _0xd5be;
+  let _0x1ab3fc = inp['\u0070\u0072\u0069\u0063\u0065\u0073\u0057\u0069\u0074\u0068\u0056\u0041\u0054'] ? inp['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065'] : inp['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065'] * ((808563 ^ 808562) + inp['\u0076\u0061\u0074\u0052\u0061\u0074\u0065']);
+  _0xd5be = 182518 ^ 182518;
+  _0x1ab3fc *= (869277 ^ 869276) + inp['\u0066\u0078\u0052\u0069\u0073\u006B\u0050\u0063\u0074'];
+  var _0x8c_0xgfe = (693466 ^ 693467) + (653767 ^ 653766);
+  let _0x161b = inp['\u0070\u0072\u0069\u0063\u0065\u0073\u0057\u0069\u0074\u0068\u0056\u0041\u0054'] ? inp['\u0073\u0061\u006C\u0065'] : inp['\u0073\u0061\u006C\u0065'] * ((563334 ^ 563335) + inp['\u0076\u0061\u0074\u0052\u0061\u0074\u0065']);
+  _0x8c_0xgfe = (431845 ^ 431847) + (403785 ^ 403785);
+  var _0x89cebf = (332993 ^ 333001) + (699276 ^ 699276);
+  const _0xc5fc = _0x1ab3fc / ((337198 ^ 337199) + inp['\u0076\u0061\u0074\u0052\u0061\u0074\u0065']);
+  _0x89cebf = "hfjclo";
+  const _0x1cc27e = _0x161b / ((328456 ^ 328457) + inp['\u0076\u0061\u0074\u0052\u0061\u0074\u0065']);
+  var _0x4d21a = (368385 ^ 368384) + (247237 ^ 247239);
+  const _0x3153e = _0x1ab3fc - _0xc5fc;
+  _0x4d21a = (239896 ^ 239902) + (737707 ^ 737706);
+  const _0xc18bf = _0x161b - _0x1cc27e;
+  let _0x3a64a;
+  const _0xe158aa = _0xc18bf - _0x3153e;
+  _0x3a64a = 330928 ^ 330929;
+  var _0x0736ae = (107318 ^ 107313) + (612746 ^ 612748);
+  const _0x4d605c = _0x161b - _0x1ab3fc;
+  _0x0736ae = (558011 ^ 558003) + (473983 ^ 473975);
+  let _0xab106e;
+  const _0x918g = _0x1cc27e - _0xc5fc;
+  _0xab106e = '\u006C\u0063\u0062\u0069\u0062\u0070';
+  const _0x41ddg = Math['\u006D\u0061\u0078'](_0x918g, 415042 ^ 415042) * inp['\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0052\u0061\u0074\u0065'];
+  const _0x63f9gd = inp['\u006D\u0069\u006E\u0054\u0061\u0078\u0042\u0061\u0073\u0065'] === 'gross' ? _0x161b : _0x1cc27e;
+  var _0xe04ag = (961675 ^ 961677) + (124534 ^ 124530);
+  const _0x3248c = _0x63f9gd * inp['\u006D\u0069\u006E\u0054\u0061\u0078\u0052\u0061\u0074\u0065'];
+  _0xe04ag = 565292 ^ 565289;
+  let _0x49a;
+  const _0xgec = Math['\u006D\u0061\u0078'](_0x41ddg, _0x3248c);
+  _0x49a = 144570 ^ 144562;
+  let _0xc67b4f;
+  const _0x5b7cf = _0x161b * inp['\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0050\u0063\u0074'];
+  _0xc67b4f = 933132 ^ 933130;
+  const _0xe9c7f = _0x918g - _0xgec - _0x5b7cf;
+  const _0xf3a8e = Math['\u006D\u0061\u0078'](_0x1ab3fc - _0xf8da, 337789 ^ 337789);
+  let _0xgb_0x275;
+  const _0xb_0x583 = inp['\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0054\u0079\u0070\u0065'] === "\u006F\u0077\u006E" ? 101233 ^ 101233 : Math['\u006D\u0069\u006E'](inp['\u006C\u006F\u0061\u006E\u0041\u006D\u006F\u0075\u006E\u0074'], _0xf3a8e);
+  _0xgb_0x275 = (858450 ^ 858454) + (937808 ^ 937817);
+  const _0x0g6fe = Math['\u006D\u0061\u0078'](_0xf3a8e - _0xb_0x583, 760440 ^ 760440);
+  const _0x5c_0x0cd = inp['\u0074\u0065\u0072\u006D\u0044\u0061\u0079\u0073'] + Math['\u006D\u0061\u0078'](inp['\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073'], 566983 ^ 566983);
+  var _0xfb763f = (456200 ^ 456202) + (435491 ^ 435490);
+  const _0xb25e8b = _0xb_0x583 * inp['\u006C\u006F\u0061\u006E\u0052\u0061\u0074\u0065'] / (229169 ^ 228956) * _0x5c_0x0cd;
+  _0xfb763f = (254397 ^ 254389) + (280372 ^ 280368);
+  var _0xfcbc = (214958 ^ 214958) + (118751 ^ 118743);
+  const _0xbc8fd = inp['\u0066\u0075\u006E\u0064\u0069\u006E\u0067\u0054\u0079\u0070\u0065'] === "\u006F\u0077\u006E" ? _0x1ab3fc * inp['\u0061\u006C\u0074\u0052\u0061\u0074\u0065'] : _0xb_0x583 * inp['\u006C\u006F\u0061\u006E\u0052\u0061\u0074\u0065'];
+  _0xfcbc = '\u0067\u0069\u006E\u0064\u0062\u0063';
+  const _0xc3794b = inp['\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073'] > (535762 ^ 535762) ? _0xbc8fd / (544373 ^ 544536) * inp['\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073'] : 529604 ^ 529604;
+  function _0x2_0xbeb(pctOur) {
+    let _0x8049d,
+      _0x9d75ca,
+      _0xcafeec = 745099 ^ 745099;
+    if (!inp['\u0067\u0070\u0041\u0073\u0045\u0078\u0070\u0065\u006E\u0073\u0065']) {
+      _0x8049d = _0xe9c7f * pctOur;
+      _0x9d75ca = _0xe9c7f * ((111500 ^ 111501) - pctOur);
+    } else {
+      _0xcafeec = _0x918g * ((474616 ^ 474617) - pctOur);
+      const _0x75aef = _0x918g - _0xcafeec;
+      var _0xfe224b = (354344 ^ 354350) + (272683 ^ 272674);
+      const _0xbg65bd = Math['\u006D\u0061\u0078'](Math['\u006D\u0061\u0078'](_0x75aef, 398758 ^ 398758) * inp['\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0052\u0061\u0074\u0065'], _0x3248c);
+      _0xfe224b = '\u006B\u0069\u0067\u0063\u006B\u0071';
+      _0x8049d = _0x75aef - _0xbg65bd - _0x5b7cf;
+      _0x9d75ca = _0xcafeec;
+    }
+    let _0xdaddaf = 945241 ^ 945241,
+      _0xe73a = 147538 ^ 147538;
+    if (inp['\u0064\u0065\u006C\u0061\u0079\u0054\u0079\u0070\u0065'] === "\u006D\u0079\u005F\u006F\u0072\u0064\u0065\u0072") _0xdaddaf = _0xc3794b;else if (inp['\u0064\u0065\u006C\u0061\u0079\u0054\u0079\u0070\u0065'] === "\u0070\u0061\u0079\u006D\u0065\u006E\u0074" || inp['\u0064\u0065\u006C\u0061\u0079\u0054\u0079\u0070\u0065'] === "\u0063\u006C\u0069\u0065\u006E\u0074\u005F\u006F\u0072\u0064\u0065\u0072") _0xe73a = _0xc3794b;
+    _0x8049d -= _0xdaddaf;
+    _0x9d75ca -= _0xe73a;
+    _0x8049d -= _0xb25e8b;
+    return {
+      "ourShare": _0x8049d,
+      "gpShare": _0x9d75ca,
+      "gpFee": _0xcafeec
+    };
+  }
+  var _0x39b31f = (291717 ^ 291725) + (667088 ^ 667097);
+  const _0x613ceb = _0x2_0xbeb(_0x0e7ded);
+  _0x39b31f = (138503 ^ 138500) + (332776 ^ 332778);
+  var _0x525eeb = (195569 ^ 195571) + (872489 ^ 872495);
+  const _0x4_0x300 = _0x0g6fe > (953871 ^ 953870) ? _0x613ceb['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'] / _0x0g6fe * (762829 ^ 762793) : _0x613ceb['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'] > (257009 ^ 257009) ? Infinity : -Infinity;
+  _0x525eeb = '\u0062\u006C\u0063\u0069\u0065\u0066';
+  var _0x8417e = (525648 ^ 525653) + (983843 ^ 983850);
+  const _0xb1ac8f = _0x0g6fe > (665780 ^ 665781) ? _0x4_0x300 * (198836 ^ 199129) / _0x5c_0x0cd : _0x613ceb['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'] > (933359 ^ 933359) ? Infinity : -Infinity;
+  _0x8417e = (600141 ^ 600133) + (670935 ^ 670934);
+  const _0xa6516b = _0xb1ac8f === Infinity ? Infinity : _0xb1ac8f === -Infinity ? -Infinity : _0xb1ac8f / (828570 ^ 828566);
+  return {
+    "purchaseGross": _0x1ab3fc,
+    '\u0073\u0061\u006C\u0065\u0047\u0072\u006F\u0073\u0073': _0x161b,
+    '\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u004E\u0065\u0074': _0xc5fc,
+    "saleNet": _0x1cc27e,
+    '\u0076\u0061\u0074\u0049\u006E\u0070\u0075\u0074': _0x3153e,
+    "vatOutput": _0xc18bf,
+    "vatToPay": _0xe158aa,
+    '\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u0047\u0072\u006F\u0073\u0073': _0x4d605c,
+    "deltaRKPNet": _0x918g,
+    "profitTaxCalc": _0x41ddg,
+    '\u006D\u0069\u006E\u0054\u0061\u0078\u0041\u006D\u006F\u0075\u006E\u0074': _0x3248c,
+    "taxToPay": _0xgec,
+    '\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0041\u006D\u006F\u0075\u006E\u0074': _0x5b7cf,
+    "netProfitAfterTax": _0xe9c7f,
+    '\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064': _0x0g6fe,
+    "financingCost": _0xb25e8b,
+    '\u0064\u0065\u006C\u0061\u0079\u0043\u006F\u0073\u0074': _0xc3794b,
+    "effectiveTerm": _0x5c_0x0cd,
+    '\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065': _0x613ceb['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'],
+    '\u0067\u0070\u0053\u0068\u0061\u0072\u0065': _0x613ceb['\u0067\u0070\u0053\u0068\u0061\u0072\u0065'],
+    '\u0063\u006F\u0063': _0x4_0x300,
+    "annual": _0xb1ac8f,
+    '\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065': _0xa6516b
+  };
+}
+function rating(r) {
+  var _0x0e6e8b = (414886 ^ 414887) + (597701 ^ 597696);
+  const _0x2ebag = r['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'] === Infinity ? 'green' : r['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'] === -Infinity ? "\u0072\u0065\u0064" : r['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'] >= (784793 ^ 784796) ? 'green' : r['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'] >= (752118 ^ 752117) ? 'orange' : "\u0072\u0065\u0064";
+  _0x0e6e8b = 943662 ^ 943656;
+  let _0xaee55d;
+  const _0xeede = r['\u0061\u006E\u006E\u0075\u0061\u006C'] === Infinity ? "\u0067\u0072\u0065\u0065\u006E" : r['\u0061\u006E\u006E\u0075\u0061\u006C'] === -Infinity ? "\u0072\u0065\u0064" : r['\u0061\u006E\u006E\u0075\u0061\u006C'] >= (405393 ^ 405384) ? "\u0067\u0072\u0065\u0065\u006E" : r['\u0061\u006E\u006E\u0075\u0061\u006C'] >= (275358 ^ 275345) ? 'orange' : 'red';
+  _0xaee55d = (697178 ^ 697181) + (551025 ^ 551028);
+  const _0x21c5ac = r['\u0063\u006F\u0063'] === Infinity ? 'green' : r['\u0063\u006F\u0063'] === -Infinity ? "\u0072\u0065\u0064" : r['\u0063\u006F\u0063'] > (980726 ^ 980729) ? "\u0067\u0072\u0065\u0065\u006E" : r['\u0063\u006F\u0063'] >= (737046 ^ 737055) ? "\u006F\u0072\u0061\u006E\u0067\u0065" : "\u0072\u0065\u0064";
+  return {
+    "bandMonthly": _0x2ebag,
+    '\u0062\u0061\u006E\u0064\u0041\u006E\u006E\u0075\u0061\u006C': _0xeede,
+    '\u0062\u0061\u006E\u0064\u0043\u006F\u0063': _0x21c5ac,
+    "overall": _0x2ebag
+  };
+}
+var _0x6e6ff = (515245 ^ 515243) + (516698 ^ 516701);
+const RATING_LABEL = {
+  "green": '🟢 Зелёная',
+  "orange": "\uD83D\uDFE0\u0020\u041E\u0440\u0430\u043D\u0436\u0435\u0432\u0430\u044F",
+  '\u0072\u0065\u0064': '🔴 Красная'
+};
+_0x6e6ff = '\u0068\u0063\u006C\u0064\u0068\u0069';
+function findGreenOptions(inp) {
+  const _0x8g4fba = calcCore(inp);
+  if (rating(_0x8g4fba)['\u006F\u0076\u0065\u0072\u0061\u006C\u006C'] === "\u0067\u0072\u0065\u0065\u006E") {
+    return {
+      '\u0073\u0074\u0061\u0074\u0075\u0073': 'already',
+      '\u0063\u0075\u0072\u0072\u0065\u006E\u0074': _0x8g4fba
+    };
+  }
+  var _0x940b = (811539 ^ 811538) + (236360 ^ 236364);
+  const _0x39f48e = calcCore(inp, {
+    '\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065': 1
+  });
+  _0x940b = (218983 ^ 218982) + (830909 ^ 830905);
+  if (rating(_0x39f48e)['\u006F\u0076\u0065\u0072\u0061\u006C\u006C'] === "\u0067\u0072\u0065\u0065\u006E") {
+    return {
+      "status": 'fullMarginEnough',
+      '\u0072\u0065\u0073\u0075\u006C\u0074': _0x39f48e
+    };
+  }
+  let _0x92af;
+  const _0x14142f = calcCore(inp, {
+    "ourPercentOverride": 1,
+    '\u0061\u0064\u0076\u0061\u006E\u0063\u0065\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065': _0x39f48e['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073']
+  });
+  _0x92af = '\u0069\u006C\u0062\u0065\u0063\u0062';
+  if (rating(_0x14142f)['\u006F\u0076\u0065\u0072\u0061\u006C\u006C'] !== "\u0067\u0072\u0065\u0065\u006E") {
+    return {
+      '\u0073\u0074\u0061\u0074\u0075\u0073': 'impossible',
+      '\u0062\u0065\u0073\u0074\u0043\u0061\u0073\u0065': _0x14142f
+    };
+  }
+  let _0xdg9d = 474429 ^ 474429,
+    _0x3279d = _0x39f48e['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073'];
+  for (let i = 777190 ^ 777190; i < (441746 ^ 441774); i++) {
+    var _0x6c_0x36d = (245796 ^ 245799) + (550311 ^ 550308);
+    const _0xa818da = (_0xdg9d + _0x3279d) / (408218 ^ 408216);
+    _0x6c_0x36d = '\u0071\u006E\u0063\u006F\u006E\u0063';
+    var _0x71fba = (425778 ^ 425777) + (744228 ^ 744227);
+    const r = calcCore(inp, {
+      "ourPercentOverride": 1,
+      "advanceOverride": _0xa818da
+    });
+    _0x71fba = 335441 ^ 335444;
+    if (rating(r)['\u006F\u0076\u0065\u0072\u0061\u006C\u006C'] === "\u0067\u0072\u0065\u0065\u006E") _0x3279d = _0xa818da;else _0xdg9d = _0xa818da;
+  }
+  return {
+    '\u0073\u0074\u0061\u0074\u0075\u0073': "\u006E\u0065\u0065\u0064\u0041\u0064\u0076\u0061\u006E\u0063\u0065",
+    '\u006D\u0069\u006E\u0041\u0064\u0076\u0061\u006E\u0063\u0065': _0x3279d,
+    '\u0072\u0065\u0073\u0075\u006C\u0074': calcCore(inp, {
+      '\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074\u004F\u0076\u0065\u0072\u0072\u0069\u0064\u0065': 1,
+      "advanceOverride": _0x3279d
+    }),
+    '\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073': _0x39f48e['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073']
+  };
+}
+let _0xfdb;
+let chart = null;
+_0xfdb = 367402 ^ 367401;
+function render() {
+  var _0xa556d = (698529 ^ 698537) + (508566 ^ 508564);
+  const _0xac3fbc = gatherInputs();
+  _0xa556d = 420595 ^ 420602;
+  var _0x4dde = (583062 ^ 583059) + (606290 ^ 606294);
+  const _0x27752e = calcCore(_0xac3fbc, {
+    "ourPercentOverride": 1
+  });
+  _0x4dde = '\u006C\u0070\u006E\u0071\u0067\u006B';
+  const _0xe7ce5g = calcCore(_0xac3fbc);
+  const _0x45192c = rating(_0xe7ce5g);
+  $('kpiMain')['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = 'kpi-main';
+  $("\u006B\u0070\u0069\u004D\u0061\u0069\u006E")['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `
+    <div class="kpi-label">Доходность в месяц (решающий показатель · цель ≥5%)</div>
+    <div class="kpi-value" style="color:${_0x45192c['\u0062\u0061\u006E\u0064\u004D\u006F\u006E\u0074\u0068\u006C\u0079'] === "\u0067\u0072\u0065\u0065\u006E" ? '#4ade80' : _0x45192c['\u0062\u0061\u006E\u0064\u004D\u006F\u006E\u0074\u0068\u006C\u0079'] === "\u006F\u0072\u0061\u006E\u0067\u0065" ? "\u0023\u0066\u0062\u0039\u0032\u0033\u0063" : '#f87171'}">
+      ${fmtPct(_0xe7ce5g['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}
+    </div>
+    <div class="kpi-sub">Чистая прибыль (с долей ГП): ${fmt(_0xe7ce5g['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])} · Срок: ${_0xe7ce5g['\u0065\u0066\u0066\u0065\u0063\u0074\u0069\u0076\u0065\u0054\u0065\u0072\u006D']} дн.</div>
+    <span class="badge ${_0x45192c['\u0062\u0061\u006E\u0064\u004D\u006F\u006E\u0074\u0068\u006C\u0079']}">${RATING_LABEL[_0x45192c['\u0062\u0061\u006E\u0064\u004D\u006F\u006E\u0074\u0068\u006C\u0079']]}</span>
+  `;
+  $("\u006B\u0070\u0069\u0049\u006E\u0066\u006F\u0047\u0072\u0069\u0064")['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `
+    <div class="kpi-info">
+      <div class="kpi-label">Эффективность, % годовых</div>
+      <div class="kpi-value">${fmtPct(_0xe7ce5g['\u0061\u006E\u006E\u0075\u0061\u006C'])}</div>
+      <span class="badge info">справочно</span>
+    </div>
+    <div class="kpi-info">
+      <div class="kpi-label">Прямой ROI (Cash-on-Cash)</div>
+      <div class="kpi-value">${fmtPct(_0xe7ce5g['\u0063\u006F\u0063'])}</div>
+      <span class="badge info">справочно</span>
+    </div>
+    <div class="kpi-info">
+      <div class="kpi-label">Чистая прибыль · 100% Дельты РКП</div>
+      <div class="kpi-value" style="color:#60a5fa">${fmt(_0x27752e['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])}</div>
+      <span class="badge info">справочно</span>
+    </div>
+  `;
+  let _0xgg_0xbg3;
+  const _0xe6ef9c = $('verdict');
+  _0xgg_0xbg3 = 950373 ^ 950370;
+  let _0x9ed82c;
+  const _0xdffe = _0x45192c['\u006F\u0076\u0065\u0072\u0061\u006C\u006C'];
+  _0x9ed82c = (761253 ^ 761248) + (837306 ^ 837304);
+  var _0x64f = (301428 ^ 301431) + (976740 ^ 976741);
+  const _0x59c5g = {
+    '\u0067\u0072\u0065\u0065\u006E': '🟢 Сделка жизнеспособна — доходность в месяц достигает цели',
+    '\u006F\u0072\u0061\u006E\u0067\u0065': '🟠 Только за собственные средства, без премии за риск — доходность ниже целевой, но выше депозита',
+    '\u0072\u0065\u0064': "\uD83D\uDD34\u0020\u041D\u0438\u0436\u0435\u0020\u0434\u0435\u043F\u043E\u0437\u0438\u0442\u0430\u0020\u2014\u0020\u043F\u043E\u043B\u043E\u0436\u0438\u0020\u0434\u0435\u043D\u044C\u0433\u0438\u0020\u043D\u0430\u0020\u0432\u043A\u043B\u0430\u0434"
+  };
+  _0x64f = "kmpgjn";
+  _0xe6ef9c['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = 'verdict ' + _0xdffe;
+  _0xe6ef9c['\u0074\u0065\u0078\u0074\u0043\u006F\u006E\u0074\u0065\u006E\u0074'] = _0x59c5g[_0xdffe] + ` · в месяц: ${fmtPct(_0xe7ce5g['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}`;
+  const _0xc79cfb = [["\u0073\u0065\u0063\u0074\u0069\u006F\u006E", 'ВЫРУЧКА И МАРЖА'], ['Стоимость закупки (с НДС)', fmt(_0x27752e['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073']), fmt(_0xe7ce5g['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073'])], ['Цена реализации (с НДС)', fmt(_0x27752e['\u0073\u0061\u006C\u0065\u0047\u0072\u006F\u0073\u0073']), fmt(_0xe7ce5g['\u0073\u0061\u006C\u0065\u0047\u0072\u006F\u0073\u0073'])], ["\u0410\u0432\u0430\u043D\u0441\u0020\u043E\u0442\u0020\u043A\u043B\u0438\u0435\u043D\u0442\u0430", fmt(_0xac3fbc['\u0061\u0064\u0076\u0061\u006E\u0063\u0065']), fmt(_0xac3fbc['\u0061\u0064\u0076\u0061\u006E\u0063\u0065'])], ["\u0414\u0435\u043B\u044C\u0442\u0430\u0020\u0420\u041A\u041F\u0020\u0028\u0433\u0440\u044F\u0437\u043D\u0430\u044F\u0020\u043C\u0430\u0440\u0436\u0430\u0029", fmt(_0x27752e['\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u0047\u0072\u006F\u0073\u0073']), fmt(_0xe7ce5g['\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u0047\u0072\u006F\u0073\u0073'])], ["\u0414\u043E\u043B\u044F\u0020\u043D\u0430\u0448\u0430\u0020\u002F\u0020\u0413\u041F\u002C\u0020\u0025", '100% / 0%', `${(_0xac3fbc['\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074'] * (314679 ^ 314707))['\u0074\u006F\u0046\u0069\u0078\u0065\u0064'](103798 ^ 103798)}% / ${((302678 ^ 302642) - _0xac3fbc['\u006F\u0075\u0072\u0050\u0065\u0072\u0063\u0065\u006E\u0074'] * (243094 ^ 243186))['\u0074\u006F\u0046\u0069\u0078\u0065\u0064'](156625 ^ 156625)}%`], ['section', "\u041D\u0414\u0421"], ["\u041D\u0414\u0421\u0020\u0438\u0441\u0445\u043E\u0434\u044F\u0449\u0438\u0439", fmt(_0x27752e['\u0076\u0061\u0074\u004F\u0075\u0074\u0070\u0075\u0074']), fmt(_0xe7ce5g['\u0076\u0061\u0074\u004F\u0075\u0074\u0070\u0075\u0074'])], ['НДС входящий', fmt(_0x27752e['\u0076\u0061\u0074\u0049\u006E\u0070\u0075\u0074']), fmt(_0xe7ce5g['\u0076\u0061\u0074\u0049\u006E\u0070\u0075\u0074'])], ["\u041D\u0414\u0421\u0020\u043A\u0020\u0443\u043F\u043B\u0430\u0442\u0435", fmt(_0x27752e['\u0076\u0061\u0074\u0054\u006F\u0050\u0061\u0079']), fmt(_0xe7ce5g['\u0076\u0061\u0074\u0054\u006F\u0050\u0061\u0079'])], ["\u0073\u0065\u0063\u0074\u0069\u006F\u006E", "\u041D\u0410\u041B\u041E\u0413\u0020\u041D\u0410\u0020\u041F\u0420\u0418\u0411\u042B\u041B\u042C"], ["\u041D\u0430\u043B\u043E\u0433\u043E\u043E\u0431\u043B\u0430\u0433\u0430\u0435\u043C\u0430\u044F\u0020\u0431\u0430\u0437\u0430", fmt(_0x27752e['\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u004E\u0065\u0074']), fmt(_0xe7ce5g['\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u004E\u0065\u0074'])], ["\u041D\u0430\u043B\u043E\u0433\u0020\u0440\u0430\u0441\u0447\u0451\u0442\u043D\u044B\u0439\u0020\u0028\u0032\u0035\u0025\u0029", fmt(_0x27752e['\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0043\u0061\u006C\u0063']), fmt(_0xe7ce5g['\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0043\u0061\u006C\u0063'])], ["\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u044B\u0439\u0020\u043D\u0430\u043B\u043E\u0433\u0020\u0028\u0034\u0025\u0029", fmt(_0x27752e['\u006D\u0069\u006E\u0054\u0061\u0078\u0041\u006D\u006F\u0075\u006E\u0074']), fmt(_0xe7ce5g['\u006D\u0069\u006E\u0054\u0061\u0078\u0041\u006D\u006F\u0075\u006E\u0074'])], ['Налог к уплате (max)', fmt(_0x27752e['\u0074\u0061\u0078\u0054\u006F\u0050\u0061\u0079']), fmt(_0xe7ce5g['\u0074\u0061\u0078\u0054\u006F\u0050\u0061\u0079'])], ["\u0420\u0435\u0437\u0435\u0440\u0432\u0020\u043D\u0430\u0020\u0440\u0438\u0441\u043A\u0438", fmt(_0x27752e['\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0041\u006D\u006F\u0075\u006E\u0074']), fmt(_0xe7ce5g['\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0041\u006D\u006F\u0075\u006E\u0074'])], ['section', 'ФИНАНСИРОВАНИЕ'], ['Стоимость финансирования', fmt(_0x27752e['\u0066\u0069\u006E\u0061\u006E\u0063\u0069\u006E\u0067\u0043\u006F\u0073\u0074']), fmt(_0xe7ce5g['\u0066\u0069\u006E\u0061\u006E\u0063\u0069\u006E\u0067\u0043\u006F\u0073\u0074'])], ['Штраф за задержку', fmt(_0x27752e['\u0064\u0065\u006C\u0061\u0079\u0043\u006F\u0073\u0074']), fmt(_0xe7ce5g['\u0064\u0065\u006C\u0061\u0079\u0043\u006F\u0073\u0074'])], ["\u0073\u0065\u0063\u0074\u0069\u006F\u006E", 'ИТОГ'], ["\u003C\u0062\u003E\u041D\u0430\u0448\u0430\u0020\u0434\u043E\u043B\u044F\u003C\u002F\u0062\u003E", `<b>${fmt(_0x27752e['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])}</b>`, `<b>${fmt(_0xe7ce5g['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])}</b>`], ["\u003C\u0062\u003E\u0414\u043E\u043B\u044F\u0020\u0433\u0435\u043D\u043F\u043E\u0434\u0440\u044F\u0434\u0447\u0438\u043A\u0430\u003C\u002F\u0062\u003E", `<b>${fmt(_0x27752e['\u0067\u0070\u0053\u0068\u0061\u0072\u0065'])}</b>`, `<b>${fmt(_0xe7ce5g['\u0067\u0070\u0053\u0068\u0061\u0072\u0065'])}</b>`], ["\u0052\u004F\u0057\u005F\u0048\u0049\u0047\u0048\u004C\u0049\u0047\u0048\u0054\u005F\u20BD", fmt(_0x27752e['\u0064\u0065\u006C\u0074\u0061\u0052\u004B\u0050\u0047\u0072\u006F\u0073\u0073'] / (957685 ^ 957687) * 0.65), "\u2014"], ["\u0412\u043B\u043E\u0436\u0435\u043D\u043D\u044B\u0439\u0020\u043A\u0430\u043F\u0438\u0442\u0430\u043B\u0020\u0028\u0441\u0020\u0443\u0447\u0451\u0442\u043E\u043C\u0020\u0430\u0432\u0430\u043D\u0441\u0430\u0029", fmt(_0x27752e['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064']), fmt(_0xe7ce5g['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064'])], ['Прямой ROI (Cash-on-Cash), % — справочно', fmtPct(_0x27752e['\u0063\u006F\u0063']), fmtPct(_0xe7ce5g['\u0063\u006F\u0063'])], ["\u042D\u0444\u0444\u0435\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442\u044C\u002C\u0020\u0025\u0020\u0433\u043E\u0434\u043E\u0432\u044B\u0445\u0020\u2014\u0020\u0441\u043F\u0440\u0430\u0432\u043E\u0447\u043D\u043E", fmtPct(_0x27752e['\u0061\u006E\u006E\u0075\u0061\u006C']), fmtPct(_0xe7ce5g['\u0061\u006E\u006E\u0075\u0061\u006C'])], ['<b>Доходность в месяц (решающий)</b>', `<b>${fmtPct(_0x27752e['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}</b>`, `<b>${fmtPct(_0xe7ce5g['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}</b>`]];
+  $("\u0074\u0061\u0062\u006C\u0065\u0042\u006F\u0064\u0079")['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = _0xc79cfb['\u006D\u0061\u0070'](r => {
+    if (r[402314 ^ 402314] === 'section') return `<tr class="section"><td colspan="3">${r[571773 ^ 571772]}</td></tr>`;
+    if (r[623757 ^ 623757] === "\u0052\u004F\u0057\u005F\u0048\u0049\u0047\u0048\u004C\u0049\u0047\u0048\u0054\u005F\u20BD") return `<tr class="highlight-row" title="Дельта РКП / 2 × 0,65 — только когда вся дельта наша"><td class="label">₽</td><td>${r[917603 ^ 917602]}</td><td>${r[181163 ^ 181161]}</td></tr>`;
+    return `<tr><td class="label">${r[429005 ^ 429005]}</td><td>${r[438074 ^ 438075]}</td><td>${r[573065 ^ 573067]}</td></tr>`;
+  })['\u006A\u006F\u0069\u006E']('');
+  var _0xg4f0bc = (556065 ^ 556069) + (267941 ^ 267939);
+  const _0xb26eb = new Date($("\u0063\u006F\u006E\u0074\u0072\u0061\u0063\u0074\u0044\u0061\u0074\u0065")['\u0076\u0061\u006C\u0075\u0065']);
+  _0xg4f0bc = 693132 ^ 693134;
+  let _0x0103b;
+  const _0xb0a15f = _0xe7ce5g['\u0065\u0066\u0066\u0065\u0063\u0074\u0069\u0076\u0065\u0054\u0065\u0072\u006D'];
+  _0x0103b = 692236 ^ 692237;
+  var _0xfdd48d = (161811 ^ 161818) + (362644 ^ 362641);
+  const _0xc0472b = [];
+  _0xfdd48d = 220427 ^ 220427;
+  for (let i = 592538 ^ 592538; i <= _0xb0a15f; i++) {
+    var _0x0c455b = (950127 ^ 950118) + (916455 ^ 916451);
+    const d = new Date(_0xb26eb);
+    _0x0c455b = 677714 ^ 677712;
+    d['\u0073\u0065\u0074\u0044\u0061\u0074\u0065'](d['\u0067\u0065\u0074\u0044\u0061\u0074\u0065']() + i);
+    _0xc0472b['\u0070\u0075\u0073\u0068'](d['\u0074\u006F\u004C\u006F\u0063\u0061\u006C\u0065\u0044\u0061\u0074\u0065\u0053\u0074\u0072\u0069\u006E\u0067']('ru-RU'));
+  }
+  const _0xdff0fd = _0xc0472b['\u006D\u0061\u0070']((_, i) => -_0x27752e['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064'] + (_0x27752e['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'] + _0x27752e['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064']) * i / _0xb0a15f);
+  const _0x11167f = _0xc0472b['\u006D\u0061\u0070']((_, i) => -_0xe7ce5g['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064'] + (_0xe7ce5g['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'] + _0xe7ce5g['\u006F\u0077\u006E\u0049\u006E\u0076\u0065\u0073\u0074\u0065\u0064']) * i / _0xb0a15f);
+  if (chart) chart['\u0064\u0065\u0073\u0074\u0072\u006F\u0079']();
+  chart = new Chart($('pnlChart'), {
+    "type": 'line',
+    "data": {
+      '\u006C\u0061\u0062\u0065\u006C\u0073': _0xc0472b,
+      "datasets": [{
+        "label": "\u0031\u0030\u0030\u0025\u0020\u0414\u0435\u043B\u044C\u0442\u044B\u0020\u0420\u041A\u041F",
+        '\u0064\u0061\u0074\u0061': _0xdff0fd,
+        '\u0062\u006F\u0072\u0064\u0065\u0072\u0043\u006F\u006C\u006F\u0072': '#3b82f6',
+        "backgroundColor": "\u0072\u0067\u0062\u0061\u0028\u0035\u0039\u002C\u0031\u0033\u0030\u002C\u0032\u0034\u0036\u002C\u002E\u0031\u0029",
+        "fill": !![],
+        "tension": .15,
+        '\u0070\u006F\u0069\u006E\u0074\u0052\u0061\u0064\u0069\u0075\u0073': 0
+      }, {
+        '\u006C\u0061\u0062\u0065\u006C': 'С учётом доли ГП',
+        "data": _0x11167f,
+        '\u0062\u006F\u0072\u0064\u0065\u0072\u0043\u006F\u006C\u006F\u0072': '#ea580c',
+        "backgroundColor": "\u0072\u0067\u0062\u0061\u0028\u0032\u0033\u0034\u002C\u0038\u0038\u002C\u0031\u0032\u002C\u002E\u0031\u0032\u0029",
+        '\u0066\u0069\u006C\u006C': !![],
+        "tension": .15,
+        '\u0070\u006F\u0069\u006E\u0074\u0052\u0061\u0064\u0069\u0075\u0073': 0
+      }]
+    },
+    '\u006F\u0070\u0074\u0069\u006F\u006E\u0073': {
+      "responsive": !![],
+      "maintainAspectRatio": !![],
+      '\u0061\u0073\u0070\u0065\u0063\u0074\u0052\u0061\u0074\u0069\u006F': 3.2,
+      "plugins": {
+        '\u006C\u0065\u0067\u0065\u006E\u0064': {
+          "labels": {
+            "color": '#e2e8f0',
+            '\u0062\u006F\u0078\u0057\u0069\u0064\u0074\u0068': 12,
+            '\u0066\u006F\u006E\u0074': {
+              '\u0073\u0069\u007A\u0065': 11
+            }
+          }
+        }
+      },
+      '\u0073\u0063\u0061\u006C\u0065\u0073': {
+        '\u0078': {
+          "ticks": {
+            '\u0063\u006F\u006C\u006F\u0072': '#94a3b8',
+            '\u006D\u0061\u0078\u0054\u0069\u0063\u006B\u0073\u004C\u0069\u006D\u0069\u0074': 8,
+            "font": {
+              "size": 10
+            }
+          },
+          "grid": {
+            "color": "\u0023\u0033\u0033\u0034\u0031\u0035\u0035"
+          }
+        },
+        '\u0079': {
+          '\u0074\u0069\u0074\u006C\u0065': {
+            "display": !![],
+            "text": "\u20BD",
+            '\u0063\u006F\u006C\u006F\u0072': "\u0023\u0039\u0034\u0061\u0033\u0062\u0038",
+            "font": {
+              "size": 11
+            }
+          },
+          '\u0074\u0069\u0063\u006B\u0073': {
+            '\u0063\u006F\u006C\u006F\u0072': '#94a3b8',
+            '\u0066\u006F\u006E\u0074': {
+              '\u0073\u0069\u007A\u0065': 10
+            }
+          },
+          '\u0067\u0072\u0069\u0064': {
+            '\u0063\u006F\u006C\u006F\u0072': '#334155'
+          }
+        }
+      }
+    }
+  });
+  const _0xa2f = findGreenOptions(_0xac3fbc);
+  let _0xff6d7b;
+  const _0x65a8b = $('optCard');
+  _0xff6d7b = (354450 ^ 354455) + (950094 ^ 950093);
+  if (_0xa2f['\u0073\u0074\u0061\u0074\u0075\u0073'] === 'already') {
+    _0x65a8b['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = "\u006F\u0070\u0074\u002D\u0063\u0061\u0072\u0064\u0020\u006F\u006B";
+    _0x65a8b['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `<h3>✅ Сделка уже в зелёной зоне</h3><p>Доходность в месяц уже ≥5%, дополнительные меры не требуются.</p>`;
+  } else if (_0xa2f['\u0073\u0074\u0061\u0074\u0075\u0073'] === 'fullMarginEnough') {
+    _0x65a8b['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = "\u006F\u0070\u0074\u002D\u0063\u0061\u0072\u0064\u0020\u006F\u006B";
+    _0x65a8b['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `<h3>✅ Достаточно забрать 100% маржи себе</h3>
+      <p>Условия: 100% Дельты РКП в оборот при текущем авансе (${fmt(_0xac3fbc['\u0061\u0064\u0076\u0061\u006E\u0063\u0065'])}).</p>
+      <p>Результат: прибыль ${fmt(_0xa2f['\u0072\u0065\u0073\u0075\u006C\u0074']['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])} ₽, доходность в месяц ${fmtPct(_0xa2f['\u0072\u0065\u0073\u0075\u006C\u0074']['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}.</p>`;
+  } else if (_0xa2f['\u0073\u0074\u0061\u0074\u0075\u0073'] === 'needAdvance') {
+    _0x65a8b['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = 'opt-card ok';
+    _0x65a8b['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `<h3>✅ Сделку можно сделать зелёной</h3>
+      <p>Условия: 100% Дельты РКП в оборот + согласовать с клиентом аванс не менее
+      <b>${fmt(_0xa2f['\u006D\u0069\u006E\u0041\u0064\u0076\u0061\u006E\u0063\u0065'])}</b> (${(_0xa2f['\u006D\u0069\u006E\u0041\u0064\u0076\u0061\u006E\u0063\u0065'] / _0xa2f['\u0070\u0075\u0072\u0063\u0068\u0061\u0073\u0065\u0047\u0072\u006F\u0073\u0073'] * (147649 ^ 147621))['\u0074\u006F\u0046\u0069\u0078\u0065\u0064'](507353 ^ 507352)}% от суммы закупки).</p>
+      <p>Результат: прибыль ${fmt(_0xa2f['\u0072\u0065\u0073\u0075\u006C\u0074']['\u006F\u0075\u0072\u0053\u0068\u0061\u0072\u0065'])} ₽, доходность в месяц ${fmtPct(_0xa2f['\u0072\u0065\u0073\u0075\u006C\u0074']['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}.</p>`;
+  } else {
+    _0x65a8b['\u0063\u006C\u0061\u0073\u0073\u004E\u0061\u006D\u0065'] = "\u006F\u0070\u0074\u002D\u0063\u0061\u0072\u0064\u0020\u0062\u0061\u0064";
+    _0x65a8b['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = `<h3>❌ Улучшить сделку невозможно</h3>
+      <p>Даже при полной марже (100% в оборот) и максимальном авансе доходность в месяц не достигает 5%
+      (текущий максимум: ${fmtPct(_0xa2f['\u0062\u0065\u0073\u0074\u0043\u0061\u0073\u0065']['\u006D\u006F\u006E\u0074\u0068\u006C\u0079\u0052\u0061\u0074\u0065'])}). Цена закупки и налоги зафиксированы — других рычагов нет.</p>`;
+  }
+}
+var _0xdg1aa = (774783 ^ 774783) + (393948 ^ 393945);
+const FIELD_IDS = ['purchase', "\u0073\u0061\u006C\u0065", "\u0061\u0064\u0076\u0061\u006E\u0063\u0065", 'pricesIncludeVAT', 'vatRate', 'ourPercent', "\u0070\u0072\u006F\u0066\u0069\u0074\u0054\u0061\u0078\u0052\u0061\u0074\u0065", "\u006D\u0069\u006E\u0054\u0061\u0078\u0052\u0061\u0074\u0065", "\u006D\u0069\u006E\u0054\u0061\u0078\u0042\u0061\u0073\u0065", 'gpAsExpense', "\u0074\u0065\u0072\u006D\u0044\u0061\u0079\u0073", 'fundingType', "\u006C\u006F\u0061\u006E\u0052\u0061\u0074\u0065", 'loanAmount', "\u0061\u006C\u0074\u0052\u0061\u0074\u0065", "\u0063\u006F\u006E\u0074\u0072\u0061\u0063\u0074\u0044\u0061\u0074\u0065", "\u0061\u0063\u0074\u0075\u0061\u006C\u0044\u0061\u0074\u0065", 'delayType', "\u0064\u0065\u006C\u0061\u0079\u0044\u0061\u0079\u0073", "\u0072\u0065\u0073\u0065\u0072\u0076\u0065\u0050\u0063\u0074", "\u0066\u0078\u0052\u0069\u0073\u006B\u0050\u0063\u0074"];
+_0xdg1aa = '\u0071\u006C\u006D\u006D\u006D\u006F';
+function saveScenario() {
+  var _0xaba = (244579 ^ 244587) + (281192 ^ 281193);
+  const _0x872cc = prompt("\u041D\u0430\u0437\u0432\u0430\u043D\u0438\u0435\u0020\u0441\u0446\u0435\u043D\u0430\u0440\u0438\u044F\u003A");
+  _0xaba = (488048 ^ 488049) + (123599 ^ 123593);
+  if (!_0x872cc) return;
+  const _0xgdg = {};
+  FIELD_IDS['\u0066\u006F\u0072\u0045\u0061\u0063\u0068'](id => {
+    var _0x26011a = (765674 ^ 765667) + (655290 ^ 655295);
+    const _0x0f8dg = $(id);
+    _0x26011a = '\u0070\u0068\u0065\u0065\u0061\u006C';
+    _0xgdg[id] = _0x0f8dg['\u0074\u0079\u0070\u0065'] === 'checkbox' ? _0x0f8dg['\u0063\u0068\u0065\u0063\u006B\u0065\u0064'] : _0x0f8dg['\u0076\u0061\u006C\u0075\u0065'];
+  });
+  const _0x1agbae = JSON['\u0070\u0061\u0072\u0073\u0065'](localStorage['\u0067\u0065\u0074\u0049\u0074\u0065\u006D']("\u0064\u0065\u0061\u006C\u0053\u0063\u0065\u006E\u0061\u0072\u0069\u006F\u0073") || "\u005B\u005D");
+  _0x1agbae['\u0070\u0075\u0073\u0068']({
+    '\u006E\u0061\u006D\u0065': _0x872cc,
+    "data": _0xgdg,
+    '\u0073\u0061\u0076\u0065\u0064\u0041\u0074': new Date()['\u0074\u006F\u0049\u0053\u004F\u0053\u0074\u0072\u0069\u006E\u0067']()
+  });
+  localStorage['\u0073\u0065\u0074\u0049\u0074\u0065\u006D']("\u0064\u0065\u0061\u006C\u0053\u0063\u0065\u006E\u0061\u0072\u0069\u006F\u0073", JSON['\u0073\u0074\u0072\u0069\u006E\u0067\u0069\u0066\u0079'](_0x1agbae));
+  refreshScenarioList();
+}
+function refreshScenarioList() {
+  const _0x26333c = JSON['\u0070\u0061\u0072\u0073\u0065'](localStorage['\u0067\u0065\u0074\u0049\u0074\u0065\u006D']("\u0064\u0065\u0061\u006C\u0053\u0063\u0065\u006E\u0061\u0072\u0069\u006F\u0073") || '[]');
+  $('scenarioList')['\u0069\u006E\u006E\u0065\u0072\u0048\u0054\u004D\u004C'] = '<option value="">📂 Загрузить сценарий…</option>' + _0x26333c['\u006D\u0061\u0070']((s, i) => `<option value="${i}">${s['\u006E\u0061\u006D\u0065']}</option>`)['\u006A\u006F\u0069\u006E']('');
+}
+function loadScenario(idx) {
+  if (idx === '') return;
+  var _0xc8da = (188353 ^ 188356) + (955617 ^ 955618);
+  const _0xb0e = JSON['\u0070\u0061\u0072\u0073\u0065'](localStorage['\u0067\u0065\u0074\u0049\u0074\u0065\u006D']('dealScenarios') || "\u005B\u005D");
+  _0xc8da = '\u006F\u0070\u006E\u006B\u0068\u0069';
+  const s = _0xb0e[+idx];
+  if (!s) return;
+  FIELD_IDS['\u0066\u006F\u0072\u0045\u0061\u0063\u0068'](id => {
+    let _0x74f;
+    const _0x45d = $(id);
+    _0x74f = (592756 ^ 592753) + (654646 ^ 654645);
+    if (_0x45d['\u0074\u0079\u0070\u0065'] === 'checkbox') _0x45d['\u0063\u0068\u0065\u0063\u006B\u0065\u0064'] = s['\u0064\u0061\u0074\u0061'][id];else _0x45d['\u0076\u0061\u006C\u0075\u0065'] = s['\u0064\u0061\u0074\u0061'][id];
+  });
+  toggleFunding();
+  render();
+}
+function deleteScenario() {
+  const _0x71d0cb = $("\u0073\u0063\u0065\u006E\u0061\u0072\u0069\u006F\u004C\u0069\u0073\u0074")['\u0076\u0061\u006C\u0075\u0065'];
+  if (_0x71d0cb === '') return;
+  const _0x99c8a = JSON['\u0070\u0061\u0072\u0073\u0065'](localStorage['\u0067\u0065\u0074\u0049\u0074\u0065\u006D']('dealScenarios') || "\u005B\u005D");
+  _0x99c8a['\u0073\u0070\u006C\u0069\u0063\u0065'](+_0x71d0cb, 425681 ^ 425680);
+  localStorage['\u0073\u0065\u0074\u0049\u0074\u0065\u006D']('dealScenarios', JSON['\u0073\u0074\u0072\u0069\u006E\u0067\u0069\u0066\u0079'](_0x99c8a));
+  refreshScenarioList();
+}
+function exportCSV() {
+  var _0x_0x3fd = (598802 ^ 598811) + (324120 ^ 324125);
+  const _0x60732c = [...document['\u0071\u0075\u0065\u0072\u0079\u0053\u0065\u006C\u0065\u0063\u0074\u006F\u0072\u0041\u006C\u006C']("\u0023\u0072\u0065\u0073\u0075\u006C\u0074\u0073\u0054\u0061\u0062\u006C\u0065\u0020\u0074\u0072")]['\u006D\u0061\u0070'](tr => [...tr['\u0063\u0068\u0069\u006C\u0064\u0072\u0065\u006E']]['\u006D\u0061\u0070'](td => td['\u0069\u006E\u006E\u0065\u0072\u0054\u0065\u0078\u0074']['\u0072\u0065\u0070\u006C\u0061\u0063\u0065'](new RegExp("\\s", '\u0067'), "\u0020"))['\u006A\u006F\u0069\u006E']("\u003B"));
+  _0x_0x3fd = (623733 ^ 623728) + (194737 ^ 194737);
+  var _0x6ge = (352914 ^ 352923) + (429199 ^ 429190);
+  const _0xd519a = '\uFEFF' + _0x60732c['\u006A\u006F\u0069\u006E']("\u000A");
+  _0x6ge = '\u006B\u006B\u0068\u0067\u0064\u0065';
+  const _0xd4ge = new Blob([_0xd519a], {
+    '\u0074\u0079\u0070\u0065': 'text/csv;charset=utf-8;'
+  });
+  const a = document['\u0063\u0072\u0065\u0061\u0074\u0065\u0045\u006C\u0065\u006D\u0065\u006E\u0074']("\u0061");
+  a['\u0068\u0072\u0065\u0066'] = URL['\u0063\u0072\u0065\u0061\u0074\u0065\u004F\u0062\u006A\u0065\u0063\u0074\u0055\u0052\u004C'](_0xd4ge);
+  a['\u0064\u006F\u0077\u006E\u006C\u006F\u0061\u0064'] = "\u0064\u0065\u0061\u006C\u005F\u0063\u0061\u006C\u0063\u002E\u0063\u0073\u0076";
+  a['\u0063\u006C\u0069\u0063\u006B']();
+}
+refreshScenarioList();
+render();
+</script>
+</body>
+</html>
